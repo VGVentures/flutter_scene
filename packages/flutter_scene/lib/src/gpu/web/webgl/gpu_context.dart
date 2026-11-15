@@ -301,16 +301,25 @@ final class WebGlContext extends GpuContext {
     web.WebGLFramebuffer Function() create,
   ) {
     final key = (color, mipLevel, slice, depth);
-    final cached = _framebufferCache[key];
-    if (cached != null) return cached;
-    if (_framebufferCache.length >= 64) {
-      for (final fbo in _framebufferCache.values) {
-        _gl.deleteFramebuffer(fbo);
-      }
-      _framebufferCache.clear();
+    // The map keeps insertion order, so moving a hit to the end makes the
+    // first entry the least recently used one.
+    final cached = _framebufferCache.remove(key);
+    if (cached != null) return _framebufferCache[key] = cached;
+    // Evict one stale entry, not the whole cache. A frame with shadows,
+    // ambient occlusion and a full post chain binds more than 64 attachment
+    // combinations; clearing everything at 64 recreated about a third of
+    // them, each with its synchronous status check, every frame.
+    if (_framebufferCache.length >= _framebufferCacheCapacity) {
+      final oldest = _framebufferCache.keys.first;
+      _gl.deleteFramebuffer(_framebufferCache.remove(oldest));
     }
     return _framebufferCache[key] = create();
   }
+
+  /// Enough for several frames' worth of attachment combinations, so a
+  /// render target that recurs every frame is never evicted, while targets
+  /// dropped on a resize age out.
+  static const int _framebufferCacheCapacity = 256;
 
   /// Snapshot the underlying `OffscreenCanvas` into a `ui.Image` for display
   /// in a Flutter widget. The canvas is resized if [width] / [height] differ
