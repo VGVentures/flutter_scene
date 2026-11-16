@@ -65,6 +65,7 @@ class DepthPrepass extends RenderGraphPass {
     int layerMask = kRenderLayerAll,
     bool writeNormals = false,
     bool keepDepthStencil = false,
+    bool depthShaderRead = false,
     Vector3? cameraRight,
     Vector3? cameraUp,
     List<Plane> cullingPlanes = const [],
@@ -82,6 +83,7 @@ class DepthPrepass extends RenderGraphPass {
        _cullingPlanes = cullingPlanes,
        _writeNormals = writeNormals,
        _keepDepthStencil = keepDepthStencil,
+       _depthShaderRead = depthShaderRead,
        _cameraRight = cameraRight ?? Vector3.zero(),
        _cameraUp = cameraUp ?? Vector3.zero(),
        _cameraTransform = cameraTransform;
@@ -110,6 +112,10 @@ class DepthPrepass extends RenderGraphPass {
   // it later in the frame. Off unless a patch will actually run; the extra
   // store costs bandwidth on tiled GPUs.
   final bool _keepDepthStencil;
+
+  // The kept depth-stencil is also sampled, as the scene pass's depth is
+  // when it captures scene color (see Scene.reuseDepthPrepass).
+  final bool _depthShaderRead;
   final Vector3 _cameraRight;
   final Vector3 _cameraUp;
 
@@ -147,7 +153,7 @@ class DepthPrepass extends RenderGraphPass {
               width: width,
               height: height,
               format: depthRasterOf(_camera).depthStencilFormat,
-              enableShaderReadUsage: false,
+              enableShaderReadUsage: _depthShaderRead,
               debugName: 'depth_prepass_depth',
             )
           : TransientTextureDescriptor.depth(
