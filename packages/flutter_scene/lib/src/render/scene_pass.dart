@@ -111,7 +111,9 @@ class ScenePass extends RenderGraphPass {
     Matrix4? displayReferredCameraTransform,
     DebugViewFrame? debugView,
     bool primaryView = false,
+    bool loadPrepassDepth = false,
   }) : _debugView = debugView,
+       _loadPrepassDepth = loadPrepassDepth,
        _primaryView = primaryView,
        _captureOpaqueColor = captureOpaqueColor,
        _displayReferredLayer = displayReferredLayer,
@@ -198,6 +200,10 @@ class ScenePass extends RenderGraphPass {
   final int _maxCaptureBatches;
   final bool _bindSceneDepth;
   final bool _suppressPlanarReflections;
+
+  // Depth-test against the depth prepass's kept buffer instead of a cleared
+  // one. See Scene.reuseDepthPrepass.
+  final bool _loadPrepassDepth;
   final double _time;
   final List<Plane> _cullingPlanes;
   final bool _includeOffscreen;
@@ -248,19 +254,32 @@ class ScenePass extends RenderGraphPass {
     // Shader-read usage is a separate question and only the capture path
     // samples it.
     final keepDepth = capture || _displayReferredLayer;
-    final depth = context.texturePool.acquire(
-      TransientTextureDescriptor(
-        width: width,
-        height: height,
-        format: depthRasterOf(_camera).depthStencilFormat,
-        sampleCount: _enableMsaa ? 4 : 1,
-        storageMode: keepDepth
-            ? gpu.StorageMode.devicePrivate
-            : gpu.StorageMode.deviceTransient,
-        enableShaderReadUsage: capture,
-        debugName: 'scene_depth',
-      ),
-    );
+    // The prepass rasterized the same opaque geometry with the same camera
+    // transform, so its depth already holds the nearest surface per pixel.
+    // Testing against it rejects every hidden fragment before the lit shader
+    // runs. It must match this pass's size and sample count.
+    final prepassDepth = _loadPrepassDepth && !_enableMsaa
+        ? context.blackboard.get<gpu.Texture>(kPrepassDepthStencilBlackboardKey)
+        : null;
+    final reusePrepassDepth =
+        prepassDepth != null &&
+        prepassDepth.width == width &&
+        prepassDepth.height == height;
+    final depth = reusePrepassDepth
+        ? prepassDepth
+        : context.texturePool.acquire(
+            TransientTextureDescriptor(
+              width: width,
+              height: height,
+              format: depthRasterOf(_camera).depthStencilFormat,
+              sampleCount: _enableMsaa ? 4 : 1,
+              storageMode: keepDepth
+                  ? gpu.StorageMode.devicePrivate
+                  : gpu.StorageMode.deviceTransient,
+              enableShaderReadUsage: capture,
+              debugName: 'scene_depth',
+            ),
+          );
     // Screen-reading translucent batches alternate between these targets so
     // each batch can sample the fully composed color behind it.
     final alternateColor = capture
@@ -301,6 +320,9 @@ class ScenePass extends RenderGraphPass {
       colorAttachment,
       depthStencilAttachment: gpu.DepthStencilAttachment(
         texture: depth,
+        depthLoadAction: reusePrepassDepth
+            ? gpu.LoadAction.load
+            : gpu.LoadAction.clear,
         depthClearValue: depthRasterOf(_camera).clearDepth,
         depthStoreAction: keepDepth
             ? gpu.StoreAction.store
