@@ -676,6 +676,23 @@ base class Scene implements SceneGraph {
   /// {@category Lighting and environment}
   bool punctualLightClustering = true;
 
+  /// Whether the scene pass depth-tests against the depth prepass's buffer
+  /// instead of clearing one of its own, so a fragment behind opaque
+  /// geometry is rejected before it is shaded.
+  ///
+  /// The scene pass sorts opaque draws by pipeline and material, not by
+  /// depth. A tile-based GPU driven directly (Metal on Apple hardware)
+  /// removes the hidden fragments itself; through WebGL nothing does, and
+  /// each one runs the full lit shader. Loading the prepass depth costs one
+  /// stored depth attachment and removes that work.
+  ///
+  /// Applies only on frames that run a depth prepass at the scene's
+  /// resolution (ambient occlusion at full resolution, reflections, temporal
+  /// anti-aliasing, scene depth inputs) without MSAA. Defaults to true on
+  /// the web.
+  /// {@category Rendering}
+  bool reuseDepthPrepass = kIsWeb;
+
   /// How many frames of GPU work may be outstanding before a screen view
   /// presents its previous image again instead of encoding a new frame.
   ///
@@ -3743,8 +3760,10 @@ base class Scene implements SceneGraph {
             // bandwidth) is paid whenever the patch is wanted, whether or
             // not a translucent surface qualifies.
             keepDepthStencil:
+                (reuseDepthPrepass && !enableMsaa) ||
                 patchTranslucentDepth ||
                 (enableTaa && temporalAntiAliasing.objectMotion),
+            depthShaderRead: reuseDepthPrepass && !enableMsaa,
             cameraRight: cameraRight,
             cameraUp: cameraUp,
             cullingPlanes: view.cullingPlanes,
@@ -3857,6 +3876,7 @@ base class Scene implements SceneGraph {
         environmentTransform: environmentTransform,
         skybox: skybox,
         enableMsaa: enableMsaa,
+        loadPrepassDepth: reuseDepthPrepass,
         directionalLight: light,
         directionalLightDirection: lightDirection,
         punctualLighting: punctualLighting,
