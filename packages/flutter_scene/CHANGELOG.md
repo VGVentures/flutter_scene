@@ -1,5 +1,6 @@
 ## 0.24.4
 
+* `Node.shadowChannelMask` picks which lights' shadow maps a node casts into without touching its lighting. Choosing casters with `lightChannelMask` sends the whole frame from clustered lighting to per-object light lists; this mask leaves clustered lighting on. A caster now needs `shadowCasterChannelMask & lightChannelMask & shadowChannelMask` to be nonzero; the default `0xFF` keeps today's behaviour.
 * Placeholder textures always bind with a nearest sampler, so on OpenGL ES, which keeps sampler state on the texture, an untextured slot no longer reads slightly under white depending on bind order.
 * `Scene.warmUp` takes `extraNodes` (and `SceneView` takes `warmUpExtraNodes`), drawn only in the warm-up frames, so content added later compiles its pipelines before it first shows instead of stalling that frame.
 * A sliced `Scene.warmUp` (`sliceBudget`, and `SceneView(warmUp: true)`) yields between slow pipeline builds and after the first sky bake. Its budget timed only creating each pipeline, while the backend compiles one when a pass first binds it, so it built everything in its first slice and blocked for the whole compile.

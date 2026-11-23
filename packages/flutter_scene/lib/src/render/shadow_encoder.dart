@@ -44,7 +44,10 @@ bool shadowCasterAccepted(
     return false;
   }
   if (!item.castsShadows) return false;
-  if ((item.lightChannelMask & casterChannelMask) == 0) return false;
+  if ((item.lightChannelMask & item.shadowChannelMask & casterChannelMask) ==
+      0) {
+    return false;
+  }
   return item.visible;
 }
 
