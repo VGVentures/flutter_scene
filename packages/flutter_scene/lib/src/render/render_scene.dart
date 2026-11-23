@@ -110,6 +110,11 @@ class RenderItem {
   /// directional light's caster mask is tested against it the same way.
   int lightChannelMask = 0xFF;
 
+  /// The owning node's shadow channels (`Node.shadowChannelMask`), refreshed
+  /// each frame. A light's caster mask must intersect both this and
+  /// [lightChannelMask] for the item to cast into its shadow map.
+  int shadowChannelMask = 0xFF;
+
   /// The owning node's effective surface debug view override, refreshed each
   /// frame (null inherits the scene's view). See `Node.debugView`.
   DebugView? debugView;

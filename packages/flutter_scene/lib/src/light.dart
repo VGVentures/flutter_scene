@@ -308,9 +308,10 @@ class DirectionalLight {
 
   /// The light channels whose nodes render into this light's shadow map, an
   /// 8-bit mask (default `0xFF`, every channel). A node casts only when
-  /// `shadowCasterChannelMask & node.lightChannelMask` is nonzero. Narrow it
-  /// to keep bulky scenery out of the cascades without changing what the light
-  /// illuminates.
+  /// `shadowCasterChannelMask & node.lightChannelMask & node.shadowChannelMask`
+  /// is nonzero; `Node.shadowChannelMask` picks casters without leaving
+  /// clustered lighting. Narrow it to keep bulky scenery out of the cascades
+  /// without changing what the light illuminates.
   ///
   /// Deliberately independent of [channelMask], which selects what this light
   /// illuminates.
@@ -689,7 +690,9 @@ class PointLight {
 
   /// The light channels whose nodes render into this light's shadow faces, an
   /// 8-bit mask (default `0xFF`, every channel). A node casts only when
-  /// `shadowCasterChannelMask & node.lightChannelMask` is nonzero.
+  /// `shadowCasterChannelMask & node.lightChannelMask & node.shadowChannelMask`
+  /// is nonzero; `Node.shadowChannelMask` picks casters without leaving
+  /// clustered lighting.
   ///
   /// Deliberately independent of [channelMask], the same way a spot's is.
   /// {@category Lighting and environment}
@@ -930,7 +933,9 @@ class SpotLight {
 
   /// The light channels whose nodes render into this spot's shadow map, an
   /// 8-bit mask (default `0xFF`, every channel). A node casts only when
-  /// `shadowCasterChannelMask & node.lightChannelMask` is nonzero.
+  /// `shadowCasterChannelMask & node.lightChannelMask & node.shadowChannelMask`
+  /// is nonzero; `Node.shadowChannelMask` picks casters without leaving
+  /// clustered lighting.
   ///
   /// Deliberately independent of [channelMask]: a node excluded from the
   /// lighting still casts unless this mask drops it too, so hiding geometry

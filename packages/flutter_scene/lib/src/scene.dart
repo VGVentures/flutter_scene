@@ -3451,6 +3451,7 @@ base class Scene implements SceneGraph {
                   identityHashCode(item.material) +
                   // A caster's channels decide which lights it casts into.
                   item.lightChannelMask +
+                  item.shadowChannelMask * 257 +
                   t[12].hashCode * 3 +
                   t[13].hashCode * 7 +
                   t[14].hashCode * 13);

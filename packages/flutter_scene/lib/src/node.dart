@@ -158,11 +158,31 @@ base class Node implements SceneGraph {
   /// image-based lighting, which channels never gate. Not inherited by
   /// children; set it on each mesh-bearing node.
   ///
-  /// A directional light's `shadowCasterChannelMask` tests against this same
-  /// value, so a node can be lit without casting into that light's shadow map
-  /// and the other way around.
+  /// A light's `shadowCasterChannelMask` tests against this same value (and
+  /// [shadowChannelMask]), so a node can be lit without casting into that
+  /// light's shadow map and the other way around.
+  ///
+  /// Any mesh off `0xFF` here turns off clustered (froxel) lighting for the
+  /// frame: every item then takes the per-object light lists, at most
+  /// `kMaxPunctualLights` lights each. To choose shadow casters without that
+  /// cost, use [shadowChannelMask].
   /// {@category Scene graph}
   int lightChannelMask = 0xFF;
+
+  // TODO(fscene): serialize this mask (NodeSpec field + json + diff).
+  /// The shadow channels this node's meshes cast into, an 8-bit bitmask. A
+  /// light's shadow map takes them only when its `shadowCasterChannelMask`
+  /// intersects both this mask and [lightChannelMask]. `0xFF` (the default)
+  /// casts into every light that [lightChannelMask] allows.
+  ///
+  /// Unlike [lightChannelMask] this changes no lighting, so it keeps
+  /// clustered lighting on: leave the scenery at `0x01` and the actors at
+  /// `0xFF`, and a spot light with `shadowCasterChannelMask = 0x02` shadows
+  /// only the actors, while a sun with the default `0xFF` still takes
+  /// everything. Not inherited by children; set it on each mesh-bearing
+  /// node.
+  /// {@category Scene graph}
+  int shadowChannelMask = 0xFF;
 
   /// A surface debug view for this subtree, overriding the scene's
   /// `Scene.debug.view`. Null (the default) inherits from the nearest
