@@ -221,6 +221,40 @@ void main() {
     });
   });
 
+  group('Node.shadowChannelMask', () {
+    test('reaches mesh and instanced render items', () {
+      final renderScene = RenderScene();
+      final root = Node()..debugMountInto(renderScene);
+      final meshNode = Node(mesh: Mesh(_StubGeometry(), _StubMaterial()))
+        ..shadowChannelMask = 0x05;
+      final instancedNode = Node()..shadowChannelMask = 0x0A;
+      instancedNode.addComponent(
+        InstancedMeshComponent(
+          InstancedMesh(geometry: _StubGeometry(), material: _StubMaterial())
+            ..addInstance(Matrix4.identity()),
+        ),
+      );
+      root
+        ..add(meshNode)
+        ..add(instancedNode);
+
+      root.scenePrePass(0);
+
+      final items = renderScene.items.toList();
+      expect(
+        items.map((item) => item.shadowChannelMask),
+        containsAll(<int>[0x05, 0x0A]),
+      );
+      // The lighting channels stay at the default, which keeps clustered
+      // lighting eligible.
+      expect(items.every((item) => item.lightChannelMask == 0xFF), isTrue);
+    });
+
+    test('defaults to every channel', () {
+      expect(Node().shadowChannelMask, 0xFF);
+    });
+  });
+
   group('shadow-caster channels', () {
     RenderItem caster({int channelMask = 0xFF}) =>
         RenderItem(geometry: _StubGeometry(), material: _StubMaterial())
@@ -272,6 +306,31 @@ void main() {
         ),
         isTrue,
       );
+    });
+
+    test('the shadow mask drops a caster without touching its lighting', () {
+      // Scenery lit by everything but kept out of the actors' spot.
+      final scenery = caster()..shadowChannelMask = 0x01;
+      expect(scenery.lightChannelMask, 0xFF);
+      expect(
+        shadowCasterAccepted(scenery, ShadowCasterFilter.all, 0x02),
+        isFalse,
+      );
+      // A sun with the default caster mask still takes it.
+      expect(
+        shadowCasterAccepted(scenery, ShadowCasterFilter.all, 0xFF),
+        isTrue,
+      );
+      // The actors, at the defaults, cast into both.
+      expect(
+        shadowCasterAccepted(caster(), ShadowCasterFilter.all, 0x02),
+        isTrue,
+      );
+    });
+
+    test('a caster needs both its light and its shadow channels', () {
+      final item = caster(channelMask: 0x01)..shadowChannelMask = 0x02;
+      expect(shadowCasterAccepted(item, ShadowCasterFilter.all, 0x03), isFalse);
     });
 
     test('channels do not override the existing caster rules', () {

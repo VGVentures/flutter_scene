@@ -243,6 +243,7 @@ class MeshComponent extends Component {
     final frustumCulled = node.frustumCulled;
     final layers = node.layers;
     final lightChannelMask = node.lightChannelMask;
+    final shadowChannelMask = node.shadowChannelMask;
     final highlightColor = node.highlightColor;
     for (var index = 0; index < _renderItems.length; index++) {
       final item = _renderItems[index];
@@ -261,6 +262,7 @@ class MeshComponent extends Component {
               item.shadowCastingMode != effectiveShadowMode ||
               item.primitiveCastsShadow != primitive.castsShadow ||
               item.lightChannelMask != lightChannelMask ||
+              item.shadowChannelMask != shadowChannelMask ||
               transformChanged) &&
           (item.shadowStatic || node.shadowStatic) &&
           (item.castsShadows || effectiveCastsShadows);
@@ -271,6 +273,7 @@ class MeshComponent extends Component {
       item.layers = layers;
       item.renderOrder = node.renderOrder;
       item.lightChannelMask = lightChannelMask;
+      item.shadowChannelMask = shadowChannelMask;
       final isMoving =
           transformChanged || (skin != null && jointsTexture != null);
       item.isMoving = isMoving;

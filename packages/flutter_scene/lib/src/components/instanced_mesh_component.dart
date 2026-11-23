@@ -66,6 +66,7 @@ class InstancedMeshComponent extends Component {
     final visible = !item.material.drawsNothing;
     final frustumCulled = node.frustumCulled;
     final lightChannelMask = node.lightChannelMask;
+    final shadowChannelMask = node.shadowChannelMask;
     final worldTransformVersion = node.worldTransformVersion;
     final instanceRevision = instancedMesh.revision;
     final geometryBoundsVersion = instancedMesh.geometry.localBoundsVersion;
@@ -78,7 +79,8 @@ class InstancedMeshComponent extends Component {
         item.layers == node.layers &&
         item.shadowStatic == node.shadowStatic &&
         item.shadowCastingMode == node.shadowCastingMode &&
-        item.lightChannelMask == lightChannelMask) {
+        item.lightChannelMask == lightChannelMask &&
+        item.shadowChannelMask == shadowChannelMask) {
       return;
     }
     final frustumCulledChanged = item.frustumCulled != frustumCulled;
@@ -95,6 +97,7 @@ class InstancedMeshComponent extends Component {
             item.shadowStatic != node.shadowStatic ||
             item.shadowCastingMode != node.shadowCastingMode ||
             item.lightChannelMask != lightChannelMask ||
+            item.shadowChannelMask != shadowChannelMask ||
             boundsChangedByInput) &&
         (item.shadowStatic || node.shadowStatic) &&
         (item.castsShadows || node.shadowCastingMode != ShadowCastingMode.off);
@@ -106,6 +109,7 @@ class InstancedMeshComponent extends Component {
     item.shadowStatic = node.shadowStatic;
     item.shadowCastingMode = node.shadowCastingMode;
     item.lightChannelMask = lightChannelMask;
+    item.shadowChannelMask = shadowChannelMask;
     item.instanceTransforms = instancedMesh.instances;
     item.instanceColors = instancedMesh.colors;
     item.instanceAttributeData = instancedMesh.instanceAttributeData;
