@@ -66,6 +66,7 @@ class DepthPrepass extends RenderGraphPass {
     bool writeNormals = false,
     bool keepDepthStencil = false,
     bool depthShaderRead = false,
+    bool writeLinearDepth = true,
     Vector3? cameraRight,
     Vector3? cameraUp,
     List<Plane> cullingPlanes = const [],
@@ -84,6 +85,7 @@ class DepthPrepass extends RenderGraphPass {
        _writeNormals = writeNormals,
        _keepDepthStencil = keepDepthStencil,
        _depthShaderRead = depthShaderRead,
+       _writeLinearDepth = writeLinearDepth,
        _cameraRight = cameraRight ?? Vector3.zero(),
        _cameraUp = cameraUp ?? Vector3.zero(),
        _cameraTransform = cameraTransform;
@@ -116,6 +118,12 @@ class DepthPrepass extends RenderGraphPass {
   // The kept depth-stencil is also sampled, as the scene pass's depth is
   // when it captures scene color (see Scene.reuseDepthPrepass).
   final bool _depthShaderRead;
+
+  // When false, nothing reads the linear depth this frame and the pass runs
+  // only for its depth-stencil (see Scene.reuseDepthPrepass): on a backend
+  // that allows it the target has no color attachment, and no linear depth
+  // is published.
+  final bool _writeLinearDepth;
   final Vector3 _cameraRight;
   final Vector3 _cameraUp;
 
@@ -131,19 +139,27 @@ class DepthPrepass extends RenderGraphPass {
     // and normals from this depth, and fp16's ~11-bit mantissa quantizes it
     // into visibly banded steps (the same reason the shadow map is fp32).
     // Depth alone fills the red channel; the normals take the other three.
-    final linearDepth = context.texturePool.acquire(
-      TransientTextureDescriptor.color(
-        width: width,
-        height: height,
-        format: _writeNormals
-            ? gpu.PixelFormat.r32g32b32a32Float
-            : gpu.PixelFormat.r32Float,
-        debugName: 'linear_depth',
-        // The kept and transient depth attachments below are different
-        // textures, so the color target gets a ring per setup.
-        attachmentKey: _keepDepthStencil ? 'depth_stored' : 'depth_transient',
-      ),
-    );
+    final depthOnly =
+        !_writeLinearDepth &&
+        !_writeNormals &&
+        gpu.gpuHost.capabilities.depthOnlyRenderTargets;
+    final linearDepth = depthOnly
+        ? null
+        : context.texturePool.acquire(
+            TransientTextureDescriptor.color(
+              width: width,
+              height: height,
+              format: _writeNormals
+                  ? gpu.PixelFormat.r32g32b32a32Float
+                  : gpu.PixelFormat.r32Float,
+              debugName: 'linear_depth',
+              // The kept and transient depth attachments below are different
+              // textures, so the color target gets a ring per setup.
+              attachmentKey: _keepDepthStencil
+                  ? 'depth_stored'
+                  : 'depth_transient',
+            ),
+          );
     // A kept depth-stencil cannot live in transient tile memory (storing a
     // deviceTransient attachment is invalid); allocate it device-private so
     // the patch pass can reload it later in the frame.
@@ -163,13 +179,16 @@ class DepthPrepass extends RenderGraphPass {
               debugName: 'depth_prepass_depth',
             ),
     );
-    final target = gpu.RenderTarget.singleColor(
-      gpu.ColorAttachment(
-        texture: linearDepth,
-        // Background texels (no geometry) read as the far plane, i.e. fully
-        // unoccluded for any consumer.
-        clearValue: Vector4(_farDepth, 0.0, 0.0, 1.0),
-      ),
+    final target = gpu.RenderTarget(
+      colorAttachments: [
+        if (linearDepth != null)
+          gpu.ColorAttachment(
+            texture: linearDepth,
+            // Background texels (no geometry) read as the far plane, i.e.
+            // fully unoccluded for any consumer.
+            clearValue: Vector4(_farDepth, 0.0, 0.0, 1.0),
+          ),
+      ],
       depthStencilAttachment: gpu.DepthStencilAttachment(
         texture: depth,
         depthClearValue: depthRasterOf(_camera).clearDepth,
@@ -204,7 +223,9 @@ class DepthPrepass extends RenderGraphPass {
     encoder.flush();
     rendererSubmissions.submit(commandBuffer);
 
-    context.blackboard.set(kLinearDepthBlackboardKey, linearDepth);
+    if (linearDepth != null) {
+      context.blackboard.set(kLinearDepthBlackboardKey, linearDepth);
+    }
     if (_keepDepthStencil) {
       context.blackboard.set(kPrepassDepthStencilBlackboardKey, depth);
     }

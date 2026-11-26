@@ -14,7 +14,9 @@ const String _staleBundleHint =
 
 final class WebGlRenderPass extends RenderPass {
   WebGlRenderPass._(this._gpuContext, this._target)
-    : _flipY = !_target.colorAttachments.first.texture.webGl.isExternal {
+    : _flipY =
+          _target.colorAttachments.isEmpty ||
+          !_target.colorAttachments.first.texture.webGl.isExternal {
     _bindFramebuffer();
     // A scissor is per pass too, and would clip the load action's clear.
     _gpuContext._gl.disable(web.WebGL2RenderingContext.SCISSOR_TEST);
@@ -94,7 +96,8 @@ final class WebGlRenderPass extends RenderPass {
     final gl = _gpuContext._gl;
 
     if (_target.colorAttachments.isEmpty) {
-      throw Exception('RenderTarget must have at least one color attachment');
+      _bindDepthOnlyFramebuffer();
+      return;
     }
     final colorAttachment = _target.colorAttachments.first;
     final color = colorAttachment.texture;
@@ -154,6 +157,56 @@ final class WebGlRenderPass extends RenderPass {
       (color.width >> mipLevel).clamp(1, color.width).toInt(),
       _targetHeight,
     );
+  }
+
+  /// Binds a framebuffer with a depth-stencil attachment and no color, for a
+  /// pass whose only output is depth (GpuCapabilities.depthOnlyRenderTargets).
+  void _bindDepthOnlyFramebuffer() {
+    final gl = _gpuContext._gl;
+    final depth = _target.depthStencilAttachment?.texture;
+    if (depth == null) {
+      throw Exception(
+        'RenderTarget must have a color or a depth-stencil attachment',
+      );
+    }
+    if (_target.depthStencilAttachment!.slice != 0 ||
+        _target.depthStencilAttachment!.mipLevel != 0 ||
+        depth.sampleCount != 1) {
+      throw UnsupportedError(
+        'A depth-only render target must be a single-sampled 2D texture '
+        'on the web backend',
+      );
+    }
+    final fbo = _gpuContext._framebufferFor(null, 0, 0, depth, () {
+      final fbo = gl.createFramebuffer();
+      if (fbo == null) {
+        throw StateError('Failed to create WebGL framebuffer');
+      }
+      gl.bindFramebuffer(web.WebGL2RenderingContext.FRAMEBUFFER, fbo);
+      gl.framebufferTexture2D(
+        web.WebGL2RenderingContext.FRAMEBUFFER,
+        web.WebGL2RenderingContext.DEPTH_STENCIL_ATTACHMENT,
+        web.WebGL2RenderingContext.TEXTURE_2D,
+        depth.webGl.glTexture,
+        0,
+      );
+      // Fragment outputs go nowhere, and nothing reads color from it.
+      gl.drawBuffers([web.WebGL2RenderingContext.NONE.toJS].toJS);
+      gl.readBuffer(web.WebGL2RenderingContext.NONE);
+      final status = gl.checkFramebufferStatus(
+        web.WebGL2RenderingContext.FRAMEBUFFER,
+      );
+      if (status != web.WebGL2RenderingContext.FRAMEBUFFER_COMPLETE) {
+        throw Exception(
+          'Framebuffer incomplete (status 0x${status.toRadixString(16)})',
+        );
+      }
+      return fbo;
+    });
+    _fbo = fbo;
+    _targetHeight = depth.height;
+    gl.bindFramebuffer(web.WebGL2RenderingContext.FRAMEBUFFER, fbo);
+    gl.viewport(0, 0, depth.width, depth.height);
   }
 
   static web.WebGLFramebuffer _createFramebuffer(
@@ -234,8 +287,8 @@ final class WebGlRenderPass extends RenderPass {
     final gl = _gpuContext._gl;
     int clearMask = 0;
 
-    final color = _target.colorAttachments.first;
-    if (color.loadAction == LoadAction.clear) {
+    final color = _target.colorAttachments.firstOrNull;
+    if (color != null && color.loadAction == LoadAction.clear) {
       gl.clearColor(
         color.clearValue.x,
         color.clearValue.y,
