@@ -157,6 +157,8 @@ class SsaoPass extends RenderGraphPass {
       baseShaderLibrary['GtaoFragment']!;
   static final gpu.Shader _downsampleShader =
       baseShaderLibrary['DepthDownsampleFragment']!;
+  static final gpu.Shader _subsampleShader =
+      baseShaderLibrary['DepthSubsampleFragment']!;
 
   // The depth mip chain matches the fp32 linear-depth prepass format.
   static const gpu.PixelFormat _depthFormat = gpu.PixelFormat.r32g32b32a32Float;
@@ -165,13 +167,17 @@ class SsaoPass extends RenderGraphPass {
   String get name => 'SsaoPass';
 
   // Downsamples [source] into a half-size (rounded down) depth level via the
-  // depth-downsample shader (rotated-grid subsample). Used to build the chain.
+  // depth-downsample shader (rotated-grid subsample), used to build the
+  // chain, or with [aligned] the same texel of every 2x2 block, used for the
+  // base level so a sloped surface keeps an even depth step per texel.
   gpu.Texture _downsampleDepth(
     RenderGraphContext context,
     gpu.Texture source,
     int width,
-    int height,
-  ) {
+    int height, {
+    bool aligned = false,
+  }) {
+    final shader = aligned ? _subsampleShader : _downsampleShader;
     final target = context.texturePool.acquire(
       TransientTextureDescriptor.color(
         width: width,
@@ -184,11 +190,11 @@ class SsaoPass extends RenderGraphPass {
     final renderPass = commandBuffer.createRenderPass(
       gpu.RenderTarget.singleColor(gpu.ColorAttachment(texture: target)),
     );
-    renderPass.bindPipeline(resolvePipeline(_vertexShader, _downsampleShader));
+    renderPass.bindPipeline(resolvePipeline(_vertexShader, shader));
     renderPass.setColorBlendEnable(false);
     bindVertexBufferCompat(renderPass, _fullscreenQuad(), 6);
     renderPass.bindTexture(
-      _downsampleShader.cachedUniformSlot('source'),
+      shader.cachedUniformSlot('source'),
       source,
       sampler: _nearestClamp,
     );
@@ -215,7 +221,13 @@ class SsaoPass extends RenderGraphPass {
     final baseDepth =
         (linearDepth.width == aoWidth && linearDepth.height == aoHeight)
         ? linearDepth
-        : _downsampleDepth(context, linearDepth, aoWidth, aoHeight);
+        : _downsampleDepth(
+            context,
+            linearDepth,
+            aoWidth,
+            aoHeight,
+            aligned: true,
+          );
 
     // Build the depth mip chain from baseDepth so the occlusion samples a
     // coarser level the further each tap reaches. When disabled the three slots

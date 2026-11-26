@@ -844,10 +844,14 @@ base class Scene implements SceneGraph {
   /// each one runs the full lit shader. Loading the prepass depth costs one
   /// stored depth attachment and removes that work.
   ///
-  /// Applies only on frames that run a depth prepass at the scene's
-  /// resolution (ambient occlusion at full resolution, reflections, temporal
-  /// anti-aliasing, scene depth inputs) without MSAA. Defaults to true on
-  /// the web.
+  /// While set, every frame without MSAA runs a depth prepass at the scene's
+  /// resolution, whether or not an effect reads depth. With nothing reading
+  /// linear depth (no ambient occlusion, reflections, temporal
+  /// anti-aliasing or scene depth input), the prepass writes depth only, with
+  /// no color target where the backend allows it. With half-resolution
+  /// ambient occlusion the prepass stays at full resolution and the
+  /// occlusion chain subsamples it. Has no effect with MSAA. Defaults to
+  /// true on the web.
   /// {@category Rendering}
   bool reuseDepthPrepass = kIsWeb;
 
@@ -4474,7 +4478,7 @@ base class Scene implements SceneGraph {
         light != null &&
         light.contactShadows &&
         (lightDirection ?? light.direction).length2 > 0.0;
-    final wantDepthPrepass =
+    final wantLinearDepth =
         bindSceneDepth ||
         wantCustomNormals ||
         wantSsr ||
@@ -4483,6 +4487,13 @@ base class Scene implements SceneGraph {
         ambientOcclusion.enabled ||
         wantContactShadows ||
         wantCustomDepth;
+    // The scene pass depth-tests against the prepass's depth (see
+    // reuseDepthPrepass), so the prepass runs for that alone when nothing
+    // reads linear depth, at full resolution, without a color target where
+    // the backend allows it. A linear-color capture keeps its old cost.
+    final reusePrepassForScene =
+        reuseDepthPrepass && !enableMsaa && !captureLinearColor;
+    final wantDepthPrepass = wantLinearDepth || reusePrepassForScene;
     IrradianceFieldBinding? irradianceBinding;
     if (projectionValid) {
       // The occlusion chain also carries the sun contact-shadow term, so it
@@ -4504,8 +4515,11 @@ base class Scene implements SceneGraph {
         // material sampling scene depth reads it as an image, so it also gets
         // full resolution; a reduced prepass stair-steps every depth-driven
         // edge it draws.
+        // A prepass the scene pass reuses must match it, so it stays at full
+        // resolution and the occlusion chain subsamples it to its own size.
         final depthDimensions =
             (wantAo &&
+                !reusePrepassForScene &&
                 !ambientOcclusion.depthMipChain &&
                 !enableTaa &&
                 !wantSsr &&
@@ -4535,6 +4549,7 @@ base class Scene implements SceneGraph {
                 patchTranslucentDepth ||
                 (enableTaa && temporalAntiAliasing.objectMotion),
             depthShaderRead: reuseDepthPrepass && !enableMsaa,
+            writeLinearDepth: wantLinearDepth || patchTranslucentDepth,
             cameraRight: cameraRight,
             cameraUp: cameraUp,
             cullingPlanes: view.cullingPlanes,

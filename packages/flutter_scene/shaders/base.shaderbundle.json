@@ -187,6 +187,10 @@
     "type": "fragment",
     "file": "shaders/flutter_scene_depth_downsample.frag"
   },
+  "DepthSubsampleFragment": {
+    "type": "fragment",
+    "file": "shaders/flutter_scene_depth_subsample.frag"
+  },
   "SsaoBlurFragment": {
     "type": "fragment",
     "file": "shaders/flutter_scene_ssao_blur.frag"

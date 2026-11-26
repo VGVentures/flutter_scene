@@ -39,6 +39,7 @@ class GpuCapabilities {
     required this.presentAsImage,
     required this.compute,
     this.externalColorTargets = false,
+    this.depthOnlyRenderTargets = false,
   });
 
   /// A rendered texture can be handed to Flutter as a `ui.Image` without a
@@ -67,6 +68,14 @@ class GpuCapabilities {
   /// flutter/flutter#192059).
   final bool externalColorTargets;
 
+  /// A render target may have a depth-stencil attachment and no color
+  /// attachment, which is what a depth-only pass (one whose only output is
+  /// the depth buffer a later pass loads) needs to skip writing color.
+  ///
+  /// False where it is not known to hold on every device; a pass then
+  /// attaches a color target it does not need.
+  final bool depthOnlyRenderTargets;
+
   /// The tier these capabilities add up to.
   GpuHostTier get hostTier {
     if (!textureToImage && !presentAsImage) return GpuHostTier.headless;
@@ -78,5 +87,6 @@ class GpuCapabilities {
   String toString() =>
       'GpuCapabilities(${hostTier.name}, textureToImage: $textureToImage, '
       'imageToTexture: $imageToTexture, presentAsImage: $presentAsImage, '
-      'compute: $compute, externalColorTargets: $externalColorTargets)';
+      'compute: $compute, externalColorTargets: $externalColorTargets, '
+      'depthOnlyRenderTargets: $depthOnlyRenderTargets)';
 }

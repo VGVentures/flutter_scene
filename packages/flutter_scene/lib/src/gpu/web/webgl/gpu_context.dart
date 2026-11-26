@@ -380,18 +380,19 @@ final class WebGlContext extends GpuContext {
   // capacity only bounds targets dropped without a release, and evicts the
   // least recently used so a frame's working set stays resident.
   static const _framebufferCacheCapacity = 256;
-  final Map<(Texture, int, int, Texture?), web.WebGLFramebuffer>
+  // A null color is a depth-only framebuffer.
+  final Map<(Texture?, int, int, Texture?), web.WebGLFramebuffer>
   _framebufferCache = {};
 
   web.WebGLFramebuffer _framebufferFor(
-    Texture color,
+    Texture? color,
     int mipLevel,
     int slice,
     Texture? depth,
     web.WebGLFramebuffer Function() create,
   ) {
     assert(
-      color.isValid && (depth?.isValid ?? true),
+      (color?.isValid ?? true) && (depth?.isValid ?? true),
       'A released Texture was used as a render target.',
     );
     final key = (color, mipLevel, slice, depth);

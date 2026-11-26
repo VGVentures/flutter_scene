@@ -20,6 +20,8 @@ final class WebGlHost extends GpuHost {
     // A WebGL framebuffer or texture from the same context binds as a render
     // target like any other, which is how a WebXR layer is drawn into.
     externalColorTargets: true,
+    // A framebuffer with only a depth attachment is complete in WebGL2.
+    depthOnlyRenderTargets: true,
   );
 
   @override
