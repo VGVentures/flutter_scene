@@ -406,6 +406,7 @@ export 'src/widgets/scene_view.dart'
         SceneCameraBuilder,
         SceneErrorBuilder,
         SceneLoadingBuilder,
+        ScenePresentation,
         SceneScope,
         SceneTickCallback,
         SceneView,
